@@ -1,0 +1,82 @@
+---
+title: "ML"
+author: "Marton Kolossvary"
+date: '2019 05 29 '
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+```
+
+# Practical Machine Learning - Prediction Assignment Writeup
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+# Data analysis
+## Loading the data
+
+```{r}
+train<- read.csv("pml-training.csv")
+test<- read.csv("pml-testing.csv")
+cat("Dimensions of training dataset")
+dim(train)
+cat("Dimensions of testing dataset")
+dim(test)
+```
+
+Variables with majority of missing values need to be excluded, as it can be anticipated that new data would also be unknown and therefore useless for prediction. Therefore all variables with missing values are excluded, then ID type variables and non numerics are excluded
+```{r}
+missing_train = colSums(is.na(train))
+train <- train[, missing_train == 0] 
+test <- test[, missing_train == 0] 
+train_outcome <- train$classe
+test_outcome <- test$classe
+train <- train[, 6:dim(train)[2]]
+test <- test[, 6:dim(test)[2]]
+train <- train[, sapply(train, is.numeric)]
+train$outcome <- train_outcome
+test <- test[, sapply(test, is.numeric)]
+test$outcome <- test_outcome
+```
+
+## Data spliting for CV
+To train models cross-validation is used using a 70/30 split
+```{r}
+set.seed(42) 
+inTrain <- createDataPartition(train$outcome, p=0.70, list=F)
+train_data <- train[inTrain, ]
+test_data <- train[-inTrain, ]
+```
+
+## Model building
+One of the most powerfull methods is the random forests. Therefore it will be trainied on the training dataset.
+```{r}
+set.seed(42) 
+setting <- trainControl(method="cv", 5)
+RandomForest <- train(outcome ~ ., data=train_data, method="rf", trControl=setting, ntree=100)
+RandomForest
+```
+
+We use this trained model on the test set to see its accuracy
+```{r}
+predicted <- predict(RandomForest, test_data)
+confusionMatrix(test_data$outcome, predicted)
+accuracy <- postResample(predicted, test_data$outcome)
+error<-1 - as.numeric(confusionMatrix(test_data$outcome, predicted)$overall[1])
+```
+The accuracy is: 0.9968 while the out of test error is: 0.032
+
+# Application to the test data
+```{r}
+predict(RandomForest, test)
+```
